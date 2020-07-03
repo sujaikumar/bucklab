@@ -74,9 +74,8 @@ Steps in the script [mirfirst_chimeras.pl](mirfirst_chimeras.pl)
 
 To run this script, you need to have ShortStack installed. You also need csvtk and bedtools, so perhaps the simplest way is to use conda:
 ```
-conda create  -n bucklab
-conda install -n bucklab -c bioconda shortstack csvtk bedtools bowtie2 bowtie cutadapt
-conda activate bucklab
+conda create -n bucklab -c bioconda shortstack csvtk bedtools bowtie2 bowtie cutadapt blast
+conda activate  bucklab
 
 for a in sample1 sample2 sample3 sample4
 do
