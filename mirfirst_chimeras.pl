@@ -48,9 +48,8 @@ GetOptions (
 die "-n name necessary" unless $name;
 
 my $input_uniqfa_hash  = &fastafile_to_hash ($input_uniqfa_file);
-my $srna_hash          = &fastafile_to_hash ($srna_file);
 
-# run bowtie2 against srna_hash (bowtie2 index with that name should exist)
+# run bowtie2 against srna_file (bowtie2 index with that same name as prefix should exist)
 #TODO: check bowtie2 index exists
 
 open BOWTIE2, "bowtie2 --threads 8 -x $srna_file -f $input_uniqfa_file --no-unal --no-head -L 10 -i C,1 -N 1 --score-min C,30 --sensitive-local $bowtie2first |" or die $!;
@@ -80,7 +79,7 @@ close $fatmp_fh;
 close BOWTIE2;
 
 # run second bowtie2 against target genome database to get the part of the read that needs to be shortstacked
-# (bowtie2 index with that name should exist)
+# (bowtie2 index with that same name as prefix should exist)
 #TODO: check bowtie2 index exists
 
 open  BOWTIE2, "bowtie2 --threads 8 --reorder -x $target_genome_file -f $fatmp_filename --no-unal --no-head -L 10 -i C,1 -N 1 --score-min C,30 --sensitive-local |" or die $!;
