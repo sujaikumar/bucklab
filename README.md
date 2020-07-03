@@ -47,7 +47,13 @@ project
 
 The goal is to identify reads where the first part hits a mature miRNA sequence (or some other small RNA / query RNA category, we expect these to be the first part of the chimera), and the second part hits the target genome. Because the second (i.e target) part can be quite short at times and can map to multiple locations in the genome, I use ShortStack's `--mmap u` mode to assign multi mapping reads.
 
-Steps in the script [mirfirst_chimeras.pl]:
+Get the bowtie2 databases (for quickly searching) and bowtie database (for shortstack) ready. hsa-mature.fa should be a DNA file, not RNA:
+```
+bowtie2-build /databases/Mirbase/22/hsa-mature.fa /databases/Mirbase/22/hsa-mature.fa
+bowtie2-build /databases/Gencode/H.sapiens/25/GRCh38.p7.genome.fa /databases/Gencode/H.sapiens/25/GRCh38.p7.genome.fa
+bowtie-build  /databases/Gencode/H.sapiens/25/GRCh38.p7.genome.fa /databases/Gencode/H.sapiens/25/GRCh38.p7.genome.fa
+```
+Steps in the script [mirfirst_chimeras.pl](mirfirst_chimeras.pl)
 
 1. Find the reads where the first part matches a miRNA and the second part is long enough to keep:
     1. Use bowtie2 to map reads to the smallRNA database (eg mature miRNA). The bowtie2 index with that prefix should already exist.
@@ -63,7 +69,7 @@ Steps in the script [mirfirst_chimeras.pl]:
     1. The b2tmpXXXXXXX temp fasta file may have many "dust" / low complexity sequences (eg "AAAAAAAAA", "ATATATATATATATATAT", "AAACAACAACAAC" etc, so we run it through dustmasker, and only keep those reads that are above a certain min length (set globally using $min_length, default 18), once the low complexity part has been removed. The output of this step is stored in a third temporary fasta file called b3tmpXXXXXXX
 
 1. Create a multifasta file from the uniqfa file, and run ShortStack
-    1. ShortStack works on individual reads, not on uniqfa sequences, so it needs to be deduped which is done inside this script using `uniqfa_to_multifa.pl`
+    1. ShortStack works on individual reads, not on uniqfa sequences, so it needs to be deduped which is done inside this script using [uniqfa_to_multifa.pl](uniqfa_to_multifa.pl)
     2. This multifa file is the input for ShortStack. The ShortStack file output directory has the same postfix as given in `-n` or `--name`
 
 To run this script, you need to have ShortStack installed. You also need csvtk and bedtools, so perhaps the simplest way is to use conda:
@@ -105,7 +111,16 @@ do
   > $a.hsa-mature.human.18.mirfirst.bam
 done
 ```
+What this is doing is prepending each read in the bam file with the miRNA name that the first part hits
+
+Next Steps:
+
+## Convert bam files to miRNA-target-loci csv tables with counts from each sample
 
 ## Get annotation files ready
 
-Once we identify the 
+## Annotate each target site with protein-coding and noncoding features and regulatory regions
+
+## Find seed regions
+
+## Run RNAhybrid between the query and target parts of each miRNA-targetsite pair
