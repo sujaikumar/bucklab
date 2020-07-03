@@ -34,7 +34,7 @@ my $srna_file;
 my $target_genome_file;
 my $name;
 my $min_length = 18;
-my $bowtie2first = "";
+my $bowtie2first = "--norc";
 
 GetOptions (
   "input_uniqfa_file=s" => \$input_uniqfa_file,
@@ -51,10 +51,11 @@ my $input_uniqfa_hash  = &fastafile_to_hash ($input_uniqfa_file);
 my $srna_hash          = &fastafile_to_hash ($srna_file);
 
 # run bowtie2 against srna_hash (bowtie2 index with that name should exist)
+#TODO: check bowtie2 index exists
 
 open BOWTIE2, "bowtie2 --threads 8 -x $srna_file -f $input_uniqfa_file --no-unal --no-head -L 10 -i C,1 -N 1 --score-min C,30 --sensitive-local $bowtie2first |" or die $!;
 my   ($fatmp_fh, $fatmp_filename) = tempfile("btmpXXXXXXX", DIR => ".");
-my %mirfirst;
+my   %mirfirst;
 
 while (<BOWTIE2>) {
 
@@ -79,6 +80,7 @@ close $fatmp_fh;
 close BOWTIE2;
 
 # run second bowtie2 against target genome database to get the part of the read that needs to be shortstacked
+# (bowtie2 index with that name should exist)
 #TODO: check bowtie2 index exists
 
 open  BOWTIE2, "bowtie2 --threads 8 --reorder -x $target_genome_file -f $fatmp_filename --no-unal --no-head -L 10 -i C,1 -N 1 --score-min C,30 --sensitive-local |" or die $!;
@@ -138,7 +140,7 @@ while (<DUST>) {
 close $fa3tmp_fh;
 
 # convert to multifa and run shortstack
-system "cat $fa3tmp_filename | ~/abuck/scripts/uniqfa_to_multifa.pl > $name.multi.fa";
+system "cat $fa3tmp_filename | uniqfa_to_multifa.pl > $name.multi.fa";
 system "ShortStack --ranmax 'none' --pad 10 --dicermin 18 --dicermax 32 --nohp --bowtie_cores 30 --mmap u --bowtie_m all --sort_mem 4G " .
        "--readfile $name.multi.fa --genomefile $target_genome_file --outdir ShortStack_noranmax.$name.mall_mincov1";
 
