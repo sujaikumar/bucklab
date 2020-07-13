@@ -116,7 +116,44 @@ Next Steps:
 
 ## Convert bam files to miRNA-target-loci csv tables with counts from each sample
 
+
 ## Get annotation files ready
+
+I use https://www.gencodegenes.org for human and mouse because they have well formatted files. Broadly - the steps are to download the relevant files from Gencode, and then to create separate files for each annotation type (UTR3, CDS, UTR5, rRNA, tRNA, miRNA). I also use the ensembl regulatory regions files and get the separate types of reg regions in separate files
+
+```
+r=34
+# am using a bash variable here so that new versions just require a one variable change
+
+mkdir -p Gencode/H.sapiens/$r
+cd !$
+wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_$r/gencode.v$r.chr_patch_hapl_scaff.annotation.gff3.gz
+wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_$r/gencode.v$r.tRNAs.gff3.gz
+
+g=gencode.v$r.chr_patch_hapl_scaff.annotation.gff3.gz
+t=gencode.v$r.tRNAs.gff3.gz
+
+mkdir genomespace
+cd    genomespace
+zcat                                 ../$t | perl -plne 's/gene_n.*transcript_name=([^;]+)/gene_name=$1/' > tRNA.gff3
+zgrep -P "\texon\t.*type=miRNA"      ../$g | perl -lne '@F=split/\t/;$F[2]="miRNA";  print join("\t",@F)' > miRNA.gff3
+zgrep -P "\texon\t.*type=(Mt_)?rRNA" ../$g | perl -lne '@F=split/\t/;$F[2]="rRNA";   print join("\t",@F)' > rRNA.gff3
+zgrep -P "\texon\t.*type=lincRNA"    ../$g | perl -lne '@F=split/\t/;$F[2]="lncRNA"; print join("\t",@F)' > lncRNA.gff3
+
+zgrep -P "\tfive_prime_UTR\t"  ../$g    > UTR5.gff3
+zgrep -P "\tthree_prime_UTR\t" ../$g    > UTR3.gff3
+zgrep -P "\tCDS\t"             ../$g    > CDS.gff3
+
+# the original Gencode GFF files don't have introns,
+# and I found this tool/method from the agat package
+# as the best/easiest way for getting (protein-coding) introns from the gff3:
+
+conda install -c bioconda agat 
+
+zgrep -P "type=protein_coding" ../$g    > pc.gff3
+agat_sp_add_introns.pl              --gff pc.gff3 --out introns.gff
+grep -P "\tintron\t" introns.gff | sort -k1,1 -k4,4n > intron.gff3
+```
 
 ## Annotate each target site with protein-coding and noncoding features and regulatory regions
 
