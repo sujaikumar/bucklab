@@ -74,7 +74,7 @@ Steps in the script [mirfirst_chimeras.pl](mirfirst_chimeras.pl)
 
 To run this script, you need to have ShortStack installed. You also need csvtk and bedtools, so perhaps the simplest way is to use conda:
 ```
-conda create -n bucklab -c bioconda shortstack csvtk bedtools bowtie2 bowtie cutadapt blast
+conda create -n bucklab -c bioconda shortstack csvtk bedtools bowtie2 bowtie cutadapt blast parallel
 conda activate  bucklab
 
 for a in sample1 sample2 sample3 sample4
@@ -99,7 +99,7 @@ do
 
   bowtie2 --threads 8 --no-unal --no-head --norc -L 10 -i C,1 -N 1 --score-min C,30 --sensitive-local \
     -x /databases/Mirbase/22/hsa-mature.fa -f $a.cutadapt.uniq.fa \
-  | extract_alignment_coordinates_from_sam.pl \
+  | extract_alignment_coordinates_from_sam.stranded.pl \
   > $a.cutadapt.uniq.fa.hsa-mature.tsv
 
   samtools view -F 4 ShortStack_noranmax.$a.hsa-mature.human.18.mall_mincov1/$a.hsa-mature.human.18.multi.bam | sed 's/:/\t/' \
@@ -133,7 +133,7 @@ do
 done \
 | sort -k1,1 -k2,2n \
 | bedtools merge -s -i - -c 6 -o distinct | perl -lne 'print "$1\t$2\t$3\t$1:$2-$3:$4\t.\t$4" if /^(\S+)\t(\d+)\t(\d+)\t(.)/' \
-> ../$OUTPREFIX.bed
+> $OUTPREFIX.bed
 ```
 
 Now, we go back to the bam files and create a count for each sample for each of these bed regions above:
@@ -153,18 +153,18 @@ done \
 | perl -ne '
     chomp;
     @F=split/,/;
-    $h{"$F[3],$F[4],$F[5],$F[6]"}{$F[7]}++;
+    $h{"$F[3]\t$F[4]\t$F[5]\t$F[6]"}{$F[7]}++;
     $samples{$F[7]}++;
   }
   {
     for $mirfirstcluster (keys %h) {
       print $mirfirstcluster;
       for $sample (sort keys %samples) {
-        print "," . $h{$mirfirstcluster}{$sample};
+        print "\t" . $h{$mirfirstcluster}{$sample};
       }
       print "\n"
     }
-' | pigz -c > ../$OUTPREFIX.samplecounts.csv.gz
+' | pigz -c > $OUTPREFIX.samplecounts.tsv.gz
 ```
 
 ## Get annotation files ready
@@ -210,8 +210,63 @@ zgrep -P "type=protein_coding" ../$g    > pc.gff3
 agat_sp_add_introns.pl --gff pc.gff3 --out introns.gff
 grep -P "\tintron\t" introns.gff | sort -k1,1 -k4,4n > intron.gff3
 ```
+## Regulatory regions
+Download regulatory regions from ensembl (make sure they match the genome version, GRCh38 matches GencodeGenes human releases 20-34, and Mouse GRCm38 matches mouse releases M2-M25 - see https://www.gencodegenes.org/human/releases.html):
+
+```
+cd Gencode/$s/$r
+wget ftp://ftp.ensembl.org/pub/release-100/regulation/homo_sapiens/homo_sapiens.GRCh38.Regulatory_Build.regulatory_features.20190329.gff.gz
+wget ftp://ftp.ensembl.org/pub/release-100/regulation/mus_musculus/mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.gff.gz
+```
+The mouse one doesn't have column 3 equal to the type of reg region it is, so that needs to be fixed first:
+```
+zcat mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.gff.gz \
+| perl -lne '@F=split/\t/;if($F[8]=~/feature_type=([^;]+)/){$F[2] = $1; $F[2]=~s/ /_/g; print join("\t",@F)}' \
+| gzip -c > mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.fixed.gff.gz
+```
+
+Now we can create sep annotation files for each type of reg region in the genomespace folder:
+```
+reg=homo_sapiens.GRCh38.Regulatory_Build.regulatory_features.20190329.gff.gz
+#reg=mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.fixed.gff.gz
+
+zcat $reg | cut -f3 | sort | uniq \
+| parallel "zcat $reg | awk '\$3==\"{}\"' | perl -plne 's/^([1-9MX])/chr\$1/' > {}.gff3"
+```
 
 ## Annotate each target site with protein-coding and noncoding features and regulatory regions
+
+intersect all the mirfirst-target loci / clusters with all the annotation gff3 from previous step:
+
+Note: These have to be done separately because reg regions don't have strand, so the bedtools intersect command is different for protein-coding vs reg regions
+
+Note: For mouse, the names of the reg region .gff3 are slightly different than for human
+
+```
+parallel "
+  bedtools intersect -s -wa -wb \
+    -a $OUTPREFIX.bed \
+    -b Gencode/$s/$r/genomespace/{}.gff3 \
+  | cut -f4,15 | perl -plne 's/\\S*gene_name=([^;]+).*/\$1/' | awk 'a[\$1]++<1' \
+  > $OUTPREFIX.{}.tsv" \
+::: UTR3 CDS UTR5 miRNA intron tRNA rRNA lncRNA
+
+parallel "
+  bedtools intersect -wa -wb \
+    -a $OUTPREFIX.bed \
+    -b Gencode/$s/$r/genomespace/{}.gff3 \
+  | cut -f4,15 | perl -plne 's/ID=[^:]+:([^;]+).*/\$1/' \
+  | awk 'a[\$1]++<1' \
+  > $OUTPREFIX.{}.tsv" \
+::: CTCF_binding_site TF_binding_site enhancer open_chromatin_region promoter_flanking_region promoter
+```
+
+combine everything:
+```
+csvtk join -T -t -H -k --fill 0 \
+  <(zcat $OUTPREFIX.samplecounts.tsv.gz) $OUTPREFIX.{UTR3,CDS,UTR5,miRNA,intron,tRNA,rRNA,lncRNA,CTCF_binding_site,TF_binding_site,enhancer,open_chromatin_region,promoter_flanking_region,promoter}.tsv \
+| gzip -c > $NAME.samplecounts.annotated.tsv.gz
+```
 
 ## Find seed regions
 
