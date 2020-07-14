@@ -227,11 +227,13 @@ zcat mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.gff.gz \
 
 Now we can create sep annotation files for each type of reg region in the genomespace folder:
 ```
-reg=homo_sapiens.GRCh38.Regulatory_Build.regulatory_features.20190329.gff.gz
-#reg=mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.fixed.gff.gz
+reg=mus_musculus.GRCm38.Regulatory_Build.regulatory_features.20180516.fixed.gff.gz
+#reg=homo_sapiens.GRCh38.Regulatory_Build.regulatory_features.20190329.gff.gz
 
-zcat $reg | cut -f3 | sort | uniq \
-| parallel "zcat $reg | awk '\$3==\"{}\"' | perl -plne 's/^([1-9MX])/chr\$1/' > {}.gff3"
+cd Gencode/$s/$r/genomespace
+
+zcat ../$reg | cut -f3 | sort | uniq \
+| parallel "zcat ../$reg | awk '\$3==\"{}\"' | perl -plne 's/^([1-9MX])/chr\$1/' > {}.gff3"
 ```
 
 ## Annotate each target site with protein-coding and noncoding features and regulatory regions
@@ -243,29 +245,7 @@ Note: These have to be done separately because reg regions don't have strand, so
 Note: For mouse, the names of the reg region .gff3 are slightly different than for human
 
 ```
-parallel "
-  bedtools intersect -s -wa -wb \
-    -a $OUTPREFIX.bed \
-    -b Gencode/$s/$r/genomespace/{}.gff3 \
-  | cut -f4,15 | perl -plne 's/\\S*gene_name=([^;]+).*/\$1/' | awk 'a[\$1]++<1' \
-  > $OUTPREFIX.{}.tsv" \
-::: UTR3 CDS UTR5 miRNA intron tRNA rRNA lncRNA
-
-parallel "
-  bedtools intersect -wa -wb \
-    -a $OUTPREFIX.bed \
-    -b Gencode/$s/$r/genomespace/{}.gff3 \
-  | cut -f4,15 | perl -plne 's/ID=[^:]+:([^;]+).*/\$1/' \
-  | awk 'a[\$1]++<1' \
-  > $OUTPREFIX.{}.tsv" \
-::: CTCF_binding_site TF_binding_site enhancer open_chromatin_region promoter_flanking_region promoter
-```
-
-combine everything:
-```
-csvtk join -T -t -H -k --fill 0 \
-  <(zcat $OUTPREFIX.samplecounts.tsv.gz) $OUTPREFIX.{UTR3,CDS,UTR5,miRNA,intron,tRNA,rRNA,lncRNA,CTCF_binding_site,TF_binding_site,enhancer,open_chromatin_region,promoter_flanking_region,promoter}.tsv \
-| gzip -c > $NAME.samplecounts.annotated.tsv.gz
+# cd back to directory with $OUTPREFIX.bed
 ```
 
 ## Find seed regions
