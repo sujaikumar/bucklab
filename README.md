@@ -92,7 +92,7 @@ done
 ```
 Once the ShortStacks have finished running, we need to convert them to bam files, where the chimera read name is modified to include the miRNA name that the first part hit:
 ```
-for a in sample1 sample2 sample3
+for a in sample1 sample2 sample3 sample4
 do
   echo $a
   cd /project/$a
@@ -116,7 +116,56 @@ Next Steps:
 
 ## Convert bam files to miRNA-target-loci csv tables with counts from each sample
 
+First we need a merged bed file of all the miRNA-specific target loci where the chromosome name has the miRNA name attached:
+```
+# this $OUTPREFIX prefix will be used for all subsequent output files
+OUTPREFIX=test
 
+for a in sample1 sample2 sample3 sample4
+do
+  samtools view $a/hsa-mature.human.18.mirfirst.bam \
+  | extract_alignment_coordinates_from_sam.stranded.pl \
+  | perl -lne '
+    if (/^(\S+?):\S+\t\d+\t\d+\t\d+\t(\S+)\t(\d+)\t(\d+)\t\d+\t(.)$/) {
+      ($mirfirst, $chr, $st, $en, $strand) = ($1, $2, $3, $4, $5);
+      print "$mirfirst:$chr\t$st\t$en\t.\t.\t$strand"
+    }'
+done \
+| sort -k1,1 -k2,2n \
+| bedtools merge -s -i - -c 6 -o distinct | perl -lne 'print "$1\t$2\t$3\t$1:$2-$3:$4\t.\t$4" if /^(\S+)\t(\d+)\t(\d+)\t(.)/' \
+> ../$OUTPREFIX.bed
+```
+
+Now, we go back to the bam files and create a count for each sample for each of these bed regions above:
+```
+for a in sample1 sample2 sample3 sample4
+do
+  samtools view $a/$a.hsa-mature.human.18.mirfirst.bam \
+  | extract_alignment_coordinates_from_sam.stranded.pl \
+  | perl -lne 'print "$2:$3\t$4\t$5\t$1\t.\t$6" if /^((\S+?):\S+)\t\d+\t\d+\t\d+\t(\S+)\t(\d+)\t(\d+)\t\d+\t(.)$/' \
+  | intersectBed -s -a - -b ../$OUTPREFIX.bed -bed -wa -wb \
+  | awk -F"\t" 'a[$4]++<1' \
+  | perl -lne '
+    @F=split/\t/;
+    print join(",", (split /:/,$F[3]), $F[0], $F[7], $F[8], $F[5], "'$a'");
+  '
+done \
+| perl -ne '
+    chomp;
+    @F=split/,/;
+    $h{"$F[3],$F[4],$F[5],$F[6]"}{$F[7]}++;
+    $samples{$F[7]}++;
+  }
+  {
+    for $mirfirstcluster (keys %h) {
+      print $mirfirstcluster;
+      for $sample (sort keys %samples) {
+        print "," . $h{$mirfirstcluster}{$sample};
+      }
+      print "\n"
+    }
+' | pigz -c > ../$OUTPREFIX.samplecounts.csv.gz
+```
 
 ## Get annotation files ready
 
