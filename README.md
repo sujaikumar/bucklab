@@ -268,4 +268,26 @@ parallel "
 
 ## Find seed regions
 
+To find seeds, or to look for dust sequences or to get targetfinder scores, we first need the actual sequences of the miRNA/smallRNA, and of the target region:
+```
+bedtools getfasta -s -name+ \
+  -fi  Gencode/$s/$r/GRCh38.p7.genome.fa \
+  -bed <(perl -plne 's/.+?://' $OUTPREFIX.bed) \
+| paste $OUTPREFIX.bed - - | cut -f4,8 \
+| pigz -c > $OUTPREFIX.targetseq.tsv.gz
+```
+Add mirna mature seq (or smallRNA) to file, by joining on the miRNA name:
+```
+csvtk join -T -t -H -k -f "1;1" \
+  <(zcat $OUTPREFIX.targetseq.tsv.gz | perl -plne 's/(.+?):/$1\t$1:/') \
+  <(seqtk seq /databases/Mirbase/22/hsa-mature.fa | paste - - | perl -plne 's/>(\S+).*\t(\S+)/$1\t$2/') \
+| cut -f2,3,4 | pigz -c > $OUTPREFIX.targetseq.maturemirnaseq.tsv.gz
+```
+- run seeds_targetfinder_rnahybrid
+```
+zcat $OUTPREFIX.targetseq.maturemirnaseq.tsv.gz \
+| awk -F"\t" '{print $3"\t"$2}' \
+| parallel -j 50 -k --pipe -N1000 seeds_dust_targetfinder.pl --nodust --notargetfinder --separator "\t" | sed 's/\t//' > $OUTPREFIX.seeds.tsv
+```
+
 ## Run RNAhybrid between the query and target parts of each miRNA-targetsite pair
