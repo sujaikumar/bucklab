@@ -118,7 +118,7 @@ Next Steps:
 
 First we need a merged bed file of all the miRNA-specific target loci where the chromosome name has the miRNA name attached:
 ```
-# this $OUTPREFIX prefix will be used for all subsequent output files
+# this $OUTPREFIX prefix will be used for all subsequent output files. I'm just using test for now
 OUTPREFIX=test
 
 for a in sample1 sample2 sample3 sample4
@@ -144,17 +144,13 @@ do
   | extract_alignment_coordinates_from_sam.stranded.pl \
   | perl -lne 'print "$2:$3\t$4\t$5\t$1\t.\t$6" if /^((\S+?):\S+)\t\d+\t\d+\t\d+\t(\S+)\t(\d+)\t(\d+)\t\d+\t(.)$/' \
   | intersectBed -s -a - -b ../$OUTPREFIX.bed -bed -wa -wb \
-  | awk -F"\t" 'a[$4]++<1' \
-  | perl -lne '
-    @F=split/\t/;
-    print join(",", (split /:/,$F[3]), $F[0], $F[7], $F[8], $F[5], "'$a'");
-  '
+  | awk -v sample=$a -F"\t" '{if(h[$4]++<1){print $10"\t"sample}}'
 done \
-| perl -ne '
+| perl -ane '
     chomp;
-    @F=split/,/;
-    $h{"$F[3]\t$F[4]\t$F[5]\t$F[6]"}{$F[7]}++;
-    $samples{$F[7]}++;
+    @F=split/\t/;
+    $h{$F[0]}{$F[1]}++;
+    $samples{$F[1]}++;
   }
   {
     for $mirfirstcluster (keys %h) {
@@ -242,10 +238,32 @@ intersect all the mirfirst-target loci / clusters with all the annotation gff3 f
 
 Note: These have to be done separately because reg regions don't have strand, so the bedtools intersect command is different for protein-coding vs reg regions
 
-Note: For mouse, the names of the reg region .gff3 are slightly different than for human
+Note: For mouse, the names of the regulatory region .gff3 s are slightly different than for human
 
 ```
 # cd back to directory with $OUTPREFIX.bed
+# the miRNA-target loci in $OUTPREFIX.bed have the miRNA/smallRNA name attached to the chromosome name,
+# so we have to first separate that to make it a proper BED file using perl -plne 's/.+?://'
+
+parallel "
+  bedtools intersect -s -wa -wb \
+    -a <(perl -plne 's/.+?://' $OUTPREFIX.bed) \
+    -b Gencode/$s/$r/genomespace/{}.gff3 \
+  | cut -f4,15 | perl -plne 's/\\S*gene_name=([^;]+).*/\$1/' | awk 'a[\$1]++<1' \
+  > $OUTPREFIX.{}.tsv" \
+::: UTR3 CDS UTR5 miRNA intron tRNA rRNA lncRNA
+
+parallel "
+  bedtools intersect -wa -wb \
+    -a <(perl -plne 's/.+?://' $OUTPREFIX.bed) \
+    -b Gencode/$s/$r/genomespace/{}.gff3 \
+  | cut -f4,15 | perl -plne 's/ID=[^:]+:([^;]+).*/\$1/' \
+  | awk 'a[\$1]++<1' \
+  > $NAME.{}.tsv" \
+::: CTCF_binding_site TF_binding_site enhancer open_chromatin_region promoter_flanking_region promoter
+
+# for mouse regulatory regions it will be:
+# ::: CTCF_Binding_Site TF_binding_site Enhancer Open_chromatin Promoter_Flanking_Region Promoter
 ```
 
 ## Find seed regions
