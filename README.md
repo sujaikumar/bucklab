@@ -283,7 +283,8 @@ csvtk join -T -t -H -k -f "1;1" \
   <(seqtk seq /databases/Mirbase/22/hsa-mature.fa | paste - - | perl -plne 's/>(\S+).*\t(\S+)/$1\t$2/') \
 | cut -f2,3,4 | pigz -c > $OUTPREFIX.targetseq.maturemirnaseq.tsv.gz
 ```
-- run seeds_targetfinder_rnahybrid
+
+Now run seed finding script (can also run targetfinder scoring and dustmasking, but those are disabled below)
 ```
 zcat $OUTPREFIX.targetseq.maturemirnaseq.tsv.gz \
 | awk -F"\t" '{print $3"\t"$2}' \
