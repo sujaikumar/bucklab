@@ -9,7 +9,7 @@ use List::Util qw/ sum /;
 use File::Temp qw/ tempfile tempdir /;
 use String::Approx 'aindex';
 
-my ($seeds, $dust, $targetfinder, $separator) = (1,1,1,",");
+my ($seeds, $dust, $targetfinder, $separator) = (1,0,0,",");
 
 GetOptions (
   "seeds!"        => \$seeds,
@@ -79,14 +79,14 @@ while (<>) {
   }
 
   if ($seeds) {
-    print ",". &is_8mer        ( $smallrna, $targetrna );
-    print ",". &is_7mer_m8     ( $smallrna, $targetrna );
-    print ",". &is_7mer_A1     ( $smallrna, $targetrna );
-    print ",". &is_6mer        ( $smallrna, $targetrna );
-    print ",". &is_6mer_offset ( $smallrna, $targetrna );
-    print ",". &is_1mm_6mer    ( $smallrna, $targetrna );
-    print ",". &is_1bulge_6mer ( $smallrna, $targetrna );
-    print ",". &is_2mm_7mer_m8 ( $smallrna, $targetrna );
+    print $separator . &is_8mer        ( $smallrna, $targetrna );
+    print $separator . &is_7mer_m8     ( $smallrna, $targetrna );
+    print $separator . &is_7mer_A1     ( $smallrna, $targetrna );
+    print $separator . &is_6mer        ( $smallrna, $targetrna );
+    print $separator . &is_6mer_offset ( $smallrna, $targetrna );
+    print $separator . &is_1mm_6mer    ( $smallrna, $targetrna );
+    print $separator . &is_1bulge_6mer ( $smallrna, $targetrna );
+    print $separator . &is_2mm_7mer_m8 ( $smallrna, $targetrna );
   }
 
   print "\n";
