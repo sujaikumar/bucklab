@@ -259,7 +259,7 @@ parallel "
     -b Gencode/$s/$r/genomespace/{}.gff3 \
   | cut -f4,15 | perl -plne 's/ID=[^:]+:([^;]+).*/\$1/' \
   | awk 'a[\$1]++<1' \
-  > $NAME.{}.tsv" \
+  > $OUTPREFIX.{}.tsv" \
 ::: CTCF_binding_site TF_binding_site enhancer open_chromatin_region promoter_flanking_region promoter
 
 # for mouse regulatory regions it will be:
