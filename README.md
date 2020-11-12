@@ -153,6 +153,11 @@ done \
     $samples{$F[1]}++;
   }
   {
+    for $sample (sort keys %samples) { # BETO: print library/sample names aka. header
+        print "\t" . $sample; # BETO: print library/sample names aka. header
+    } # BETO: print library/sample names aka. header
+    print "\n"; # BETO: print library/sample names aka. header
+    
     for $mirfirstcluster (keys %h) {
       print $mirfirstcluster;
       for $sample (sort keys %samples) {
