@@ -297,3 +297,20 @@ zcat $OUTPREFIX.targetseq.maturemirnaseq.tsv.gz \
 ```
 
 ## Run RNAhybrid between the query and target parts of each miRNA-targetsite pair
+
+```rnahybrid_srna_trna.pl
+#!/usr/bin/env perl
+
+while (<>) {
+  chomp;
+  @F=split/,/;
+  print `~/RNAhybrid-2.1.2/bin/RNAhybrid -b 1 -c $F[0] $F[1] -s 3utr_human`;
+}
+```
+run in parallel
+```
+zcat zcat $OUTPREFIX.targetseq.maturemirnaseq.tsv.gz \
+| awk -F"\t" '{print $2","$3}' \
+| parallel -j 50 -k --pipe -N1000 "cat - | rnahybrid_srna_trna.pl" \
+> $OUTPREFIX.rnahybrid.txt
+```
