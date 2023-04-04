@@ -140,7 +140,7 @@ close $fa3tmp_fh;
 
 # convert to multifa and run shortstack
 system "cat $fa3tmp_filename | uniqfa_to_multifa.pl > $name.multi.fa";
-system "ShortStack --ranmax 'none' --pad 10 --dicermin 18 --dicermax 32 --nohp --bowtie_cores 30 --mmap u --bowtie_m all --sort_mem 4G " .
+system "ShortStack --ranmax 'none' --pad 10 --mincov 1 --dicermin 18 --dicermax 32 --nohp --bowtie_cores 30 --mmap u --bowtie_m all --sort_mem 4G " .
        "--readfile $name.multi.fa --genomefile $target_genome_file --outdir ShortStack_noranmax.$name.mall_mincov1";
 
 
